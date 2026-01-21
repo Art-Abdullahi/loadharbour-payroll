@@ -1,21 +1,43 @@
 services:
   web:
     build:
-      context: .
+      context: ./apps/web
       dockerfile: Dockerfile
     container_name: loadharbour-payroll-web
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/loadharbour_payroll
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXT_PUBLIC_PAYLOAD_URL=http://localhost:4000
     volumes:
-      - .:/app
+      - ./apps/web:/app
       - /app/node_modules
       - /app/.next
     depends_on:
+      - cms
+    restart: unless-stopped
+    networks:
+      - loadharbour-network
+
+  cms:
+    build:
+      context: ./apps/cms
+      dockerfile: Dockerfile
+    container_name: loadharbour-payroll-cms
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/loadharbour_payroll
+      - REDIS_URL=redis://redis:6379
+      - PAYLOAD_SECRET=${PAYLOAD_SECRET}
+    volumes:
+      - ./apps/cms:/app
+      - /app/node_modules
+    depends_on:
       - db
+      - redis
     restart: unless-stopped
     networks:
       - loadharbour-network
@@ -35,8 +57,21 @@ services:
     networks:
       - loadharbour-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: loadharbour-payroll-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - loadharbour-network
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   loadharbour-network:
